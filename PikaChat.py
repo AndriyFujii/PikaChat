@@ -6,7 +6,7 @@ def printToMultiline(multiline, json_data):
     #print(json_data)
     date = parser.parse(json_data['timestamp'])
     
-    # [yyyy-mm-dd hh:mm:ss] <user_name> message
+    # [yyyy-mm-dd hh:mm:ss] <username> message
     text = "[" + str(date) + "] <" + json_data['user'] + "> " + json_data['message'] + '\n'
     
     # Multiline is disabled to prevent user from writing in it
@@ -36,8 +36,8 @@ def consume():
     connectionConsumer.call_later(1, callback)  
     channelConsumer = connectionConsumer.channel() # start a channel
     channelConsumer.exchange_declare(exchange=exchange_name, exchange_type='fanout')
-    channelConsumer.queue_declare(queue=user_name) # Declare a queue
-    channelConsumer.queue_bind(queue=user_name, exchange=exchange_name)
+    channelConsumer.queue_declare(queue=username) # Declare a queue
+    channelConsumer.queue_bind(queue=username, exchange=exchange_name)
     
     def on_message(channel, method, properties, body):
         try:
@@ -51,13 +51,13 @@ def consume():
             print("Bad message received")
          
     
-    channelConsumer.basic_consume(user_name, on_message, auto_ack=True)
+    channelConsumer.basic_consume(username, on_message, auto_ack=True)
     
     channelConsumer.start_consuming()
 
 json_list = []
 json_data = {}
-user_name = ""
+username = ""
 queue_name = ""
 exchange_name = ""
 close_program = False
@@ -84,7 +84,7 @@ while True:
         break
     elif event == 'Ok':
         url = values['URL']
-        user_name = values['USER']
+        username = values['USER']
         text = values['GROUP']
         
         if url == '':
@@ -92,7 +92,7 @@ while True:
                 sg.popup_error("File path can't be empty!")
             else:
                 sg.popup_error("AMQP URL can't be empty!")
-        elif user_name == '':
+        elif username == '':
             sg.popup_error("Username can't be empty!")
         elif text == '':
             sg.popup_error("Group name can't be empty!")
@@ -165,7 +165,7 @@ if close_program == False:
     
     # Reads the chat log
     try:
-        with open(user_name+'_'+exchange_name+'Log.log', 'r') as f:
+        with open(username+'_'+exchange_name+'Log.log', 'r') as f:
             json_list = json.load(f)
             
         # Loads and prints json to chat box one by one
@@ -186,13 +186,13 @@ if close_program == False:
         if event in (sg.WINDOW_CLOSED, 'Exit'):
             stopConsuming = True
             break
-        # Send message
+        # Publish message
         elif event == 'Send':
             if isGroupChat == False and isUserSet == True or isGroupChat == True:
                 #message = value['IN']+'\n'
                 message = value['IN']
                 
-                json_data["user"] = user_name
+                json_data["user"] = username
                 json_data["timestamp"] = str(datetime.datetime.now().replace(microsecond=0).isoformat())
                 json_data["message"] = message
                 
@@ -228,7 +228,7 @@ if close_program == False:
     window.close()
     
     # Writes the log
-    with open(user_name+'_'+exchange_name+'Log.log', 'w') as f:
+    with open(username+'_'+exchange_name+'Log.log', 'w') as f:
         json.dump(json_list, f, indent=4)
 
 print("Closing program")
