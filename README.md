@@ -44,3 +44,26 @@ If you'd like to send a private message, you can switch to the private chat opti
 It'll pop an error if you try to send a message without having set the user first.
 
 It works by setting the exchange as "" while publishing the message to a routing key, that's why having to set a user first is mandatory.
+
+### Message log
+The message log will be named as username_exchangename.log and it'll look something like that:
+```
+[
+    {
+        "user": "Andriy",
+        "timestamp": "2021-11-07T16:25:51",
+        "message": "Test message",
+        "source": "group"
+    },
+    {
+        "user": "Andriy",
+        "timestamp": "2021-11-07T16:35:09",
+        "message": "Private message",
+        "source": "private"
+    }
+]
+```
+
+Currently it only saves received messages, so it won't log private messages you've sent, only ones that you've received.
+
+Since it doesn't takes the CloudAMQP URl in consideration, it could end up saving chats from exchanges with the same name.
