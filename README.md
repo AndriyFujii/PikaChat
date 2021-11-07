@@ -33,7 +33,9 @@ It'll also throw a popup error if it fails to connect to the provided URL, or if
 
 That's what the chat box looks like, it'll load the chat log on start and you send messages by typing at the bottom and pressing Enter.
 
-Group messages are painted black while private messages are painted purple.
+It uses the source key in the JSON to paint the messages.
+* Group messages are painted black 
+* Private messages are painted purple. 
 
 ![Private box](/imgs/PrivateBox.PNG?raw=true)
 
