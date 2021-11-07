@@ -13,6 +13,7 @@ def printToMultiline(multiline, json_data):
     multiline.update(disabled = False)
     multiline.update(text, text_color_for_value=chooseColor(json_data['source']), append = True)
     multiline.update(disabled = True)
+    
 
 # Paints the message purple if it's private
 def chooseColor(source):
@@ -62,7 +63,6 @@ queue_name = ""
 exchange_name = ""
 close_program = False
 stopConsuming = False
-firstTimeSetup = True
 
 # Username and group name UI
 layout = [
@@ -106,14 +106,14 @@ layout = [
             [sg.Radio('Group chat', "RADIO1", default=True, enable_events=True, key='R1'),
              sg.Radio('Private chat', "RADIO1", enable_events=True, key='R2'),
              collapse(section, 'sec', False)],
-            [sg.Multiline(size=(80, 20), key='OUT', disabled = True)],
+            [sg.Multiline(size=(80, 20), key='OUT', disabled = True, autoscroll = True)],
             [sg.Input(size=(80), do_not_clear=False, key='IN'),
              sg.Button('Send', visible=False, bind_return_key=True)]
          ]
 
 # If user cancelled/closed last window, ends the program
 if close_program == False:
-    window = sg.Window('PikaChat', layout, default_element_size=(30, 2))
+    window = sg.Window('PikaChat', layout, default_element_size=(30, 2), finalize = True)
     
     isGroupChat = True
     isUserSet = False
@@ -127,25 +127,21 @@ if close_program == False:
     
     consumerThread.start()
     
+    # Reads the chat log
+    with open(exchange_name+'Log.log', 'r') as f:
+        json_list = json.load(f)
+        
+    # Loads and prints json to box
+    for item in json_list:
+        json_data['user'] = item['user']
+        json_data['timestamp'] = item['timestamp']
+        json_data['message'] = item['message']
+        json_data['source'] = item['source']
+        
+        printToMultiline(outBox, json_data)
+    
     while True:
         event, value = window.read()
-        
-        if firstTimeSetup == True:
-            # Reads the chat log
-            with open('chatLog.log', 'r') as f:
-                json_list = json.load(f)
-                
-            # Loads and prints json to box
-            for item in json_list:
-                json_data['user'] = item['user']
-                json_data['timestamp'] = item['timestamp']
-                json_data['message'] = item['message']
-                json_data['source'] = item['source']
-                
-                printToMultiline(outBox, json_data)
-            
-            window.Refresh()
-            firstTimeSetup = False
     
         # Stops consuming if user closed the chat
         if event in (sg.WINDOW_CLOSED, 'Exit'):
@@ -195,7 +191,7 @@ if close_program == False:
 
 # Writes the log
 
-with open('chatLog.log', 'w') as f:
+with open(exchange_name+'Log.log', 'w') as f:
     json.dump(json_list, f, indent=4)
     
 print("Closing program")
