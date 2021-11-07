@@ -1,16 +1,28 @@
-import pika, os, threading, json, datetime
+import pika, os, threading, json, datetime, copy
 from dateutil import parser
 import PySimpleGUI as sg
 
-# Read the key from a txt
-file = open('key.txt', 'r')
-amqpKey = file.readline()
-file.close()
+def printToMultiline(multiline, json_data):
+    #print(json_data)
+    date = parser.parse(json_data['timestamp'])
+    
+    # [yyyy-mm-dd hh:mm:ss] <user_name> message
+    text = "[" + str(date) + "] <" + json_data['user'] + "> " + json_data['message']
+    
+    # Multiline is disabled to prevent user from writing in it
+    multiline.update(disabled = False)
+    multiline.update(text, text_color_for_value=chooseColor(json_data['source']), append = True)
+    multiline.update(disabled = True)
 
-url = os.environ.get('CLOUDAMQP_URL', str(amqpKey))
-params = pika.URLParameters(url)
+# Paints the message purple if it's private
+def chooseColor(source):
+    if source == 'private':
+        return 'purple'
+    else:
+        return 'black'
 
-def consume(outBox):
+def consume():
+    # Pooling every 1 sec to see if consumer needs closing
     def callback():
         if stopConsuming:
             channelConsumer.stop_consuming()
@@ -27,36 +39,30 @@ def consume(outBox):
     channelConsumer.queue_bind(queue=user_name, exchange=exchange_name)
     
     def on_message(channel, method, properties, body):
-        global text
-        data = json.loads(body)
-        date = parser.parse(data['timestamp'])
-        
-        # [yyyy-mm-dd hh:mm:ss] <user_name> message
-        text = "[" + str(date) + "] <" + data['user'] + "> " + data['message']
-        # Paints the message purple if it's private
-        if data['source'] == 'private':
-            color = 'purple'
-        else:
-            color = 'black'
-        
-        
-        
-        # Multiline is disabled to prevent writing in it
-        outBox.update(disabled = False)
-        outBox.update(text, text_color_for_value=color, append = True)
-        outBox.update(disabled = True)
-        
+
+        printToMultiline(outBox, json.loads(body))
+         
     
     channelConsumer.basic_consume(user_name, on_message, auto_ack=True)
     
     channelConsumer.start_consuming()
 
+# Read the key from a txt
+file = open('key.txt', 'r')
+amqpKey = file.readline()
+file.close()
+
+url = os.environ.get('CLOUDAMQP_URL', str(amqpKey))
+params = pika.URLParameters(url)
+
+json_list = []
 json_data = {}
 user_name = ""
 queue_name = ""
 exchange_name = ""
 close_program = False
 stopConsuming = False
+firstTimeSetup = True
 
 # Username and group name UI
 layout = [
@@ -84,7 +90,6 @@ while True:
             exchange_name = text
             break
         
-text = ""
 window.close()
 
 # To hide a section
@@ -114,7 +119,7 @@ if close_program == False:
     isUserSet = False
     outBox = window['OUT']
     
-    consumerThread = threading.Thread(target=consume, kwargs={'outBox':outBox})
+    consumerThread = threading.Thread(target=consume)
     
     connectionPublisher = pika.BlockingConnection(params)
     channelPublisher = connectionPublisher.channel() # start a channel
@@ -124,6 +129,24 @@ if close_program == False:
     
     while True:
         event, value = window.read()
+        
+        if firstTimeSetup == True:
+            # Reads the chat log
+            with open('chatLog.log', 'r') as f:
+                json_list = json.load(f)
+                
+            # Loads and prints json to box
+            for item in json_list:
+                json_data['user'] = item['user']
+                json_data['timestamp'] = item['timestamp']
+                json_data['message'] = item['message']
+                json_data['source'] = item['source']
+                
+                printToMultiline(outBox, json_data)
+            
+            window.Refresh()
+            firstTimeSetup = False
+    
         # Stops consuming if user closed the chat
         if event in (sg.WINDOW_CLOSED, 'Exit'):
             stopConsuming = True
@@ -145,6 +168,9 @@ if close_program == False:
                 else:
                     json_data["source"] = 'private'
                     channelPublisher.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(json_data))
+                    
+                # Appends the json to the list
+                json_list.append(copy.deepcopy(json_data))
                 
             else:
                 sg.popup_error("User can't be empty!")
@@ -167,4 +193,9 @@ if close_program == False:
     
     window.close()
 
+# Writes the log
+
+with open('chatLog.log', 'w') as f:
+    json.dump(json_list, f, indent=4)
+    
 print("Closing program")
