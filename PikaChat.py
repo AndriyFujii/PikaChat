@@ -7,7 +7,7 @@ def printToMultiline(multiline, json_data):
     date = parser.parse(json_data['timestamp'])
     
     # [yyyy-mm-dd hh:mm:ss] <user_name> message
-    text = "[" + str(date) + "] <" + json_data['user'] + "> " + json_data['message']
+    text = "[" + str(date) + "] <" + json_data['user'] + "> " + json_data['message'] + '\n'
     
     # Multiline is disabled to prevent user from writing in it
     multiline.update(disabled = False)
@@ -41,19 +41,19 @@ def consume():
     
     def on_message(channel, method, properties, body):
         try:
-            printToMultiline(outBox, json.loads(body))
+            global json_list
+            
+            json_body = json.loads(body)
+            printToMultiline(outBox, json_body)
+            
+            json_list.append(copy.deepcopy(json_body))
         except:
-            print("Bad message")
+            print("Bad message received")
          
     
     channelConsumer.basic_consume(user_name, on_message, auto_ack=True)
     
     channelConsumer.start_consuming()
-
-# Read the key from a txt
-"""file = open('key.txt', 'r')
-amqpURL = file.readline()
-file.close()"""
 
 json_list = []
 json_data = {}
@@ -165,7 +165,7 @@ if close_program == False:
     
     # Reads the chat log
     try:
-        with open(exchange_name+'Log.log', 'r') as f:
+        with open(user_name+'_'+exchange_name+'Log.log', 'r') as f:
             json_list = json.load(f)
             
         # Loads and prints json to chat box one by one
@@ -189,7 +189,8 @@ if close_program == False:
         # Send message
         elif event == 'Send':
             if isGroupChat == False and isUserSet == True or isGroupChat == True:
-                message = value['IN']+'\n'
+                #message = value['IN']+'\n'
+                message = value['IN']
                 
                 json_data["user"] = user_name
                 json_data["timestamp"] = str(datetime.datetime.now().replace(microsecond=0).isoformat())
@@ -203,9 +204,8 @@ if close_program == False:
                 else:
                     json_data["source"] = 'private'
                     channelPublisher.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(json_data))
-                    
-                # Appends the json to the list
-                json_list.append(copy.deepcopy(json_data))
+                    # Currently it doesn't logs private messages sent
+                    #json_list.append(copy.deepcopy(json_data))
                 
             else:
                 sg.popup_error("User can't be empty!")
@@ -228,7 +228,7 @@ if close_program == False:
     window.close()
     
     # Writes the log
-    with open(exchange_name+'Log.log', 'w') as f:
+    with open(user_name+'_'+exchange_name+'Log.log', 'w') as f:
         json.dump(json_list, f, indent=4)
 
 print("Closing program")
