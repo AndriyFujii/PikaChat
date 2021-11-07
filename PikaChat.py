@@ -40,8 +40,10 @@ def consume():
     channelConsumer.queue_bind(queue=user_name, exchange=exchange_name)
     
     def on_message(channel, method, properties, body):
-
-        printToMultiline(outBox, json.loads(body))
+        try:
+            printToMultiline(outBox, json.loads(body))
+        except:
+            print("Bad message")
          
     
     channelConsumer.basic_consume(user_name, on_message, auto_ack=True)
@@ -49,12 +51,9 @@ def consume():
     channelConsumer.start_consuming()
 
 # Read the key from a txt
-file = open('key.txt', 'r')
-amqpKey = file.readline()
-file.close()
-
-url = os.environ.get('CLOUDAMQP_URL', str(amqpKey))
-params = pika.URLParameters(url)
+"""file = open('key.txt', 'r')
+amqpURL = file.readline()
+file.close()"""
 
 json_list = []
 json_data = {}
@@ -63,11 +62,16 @@ queue_name = ""
 exchange_name = ""
 close_program = False
 stopConsuming = False
+isConnected = False
 
 # Username and group name UI
 layout = [
+            [sg.Radio('AMQP URL', "RADIO1", default=True, enable_events=True, key='R1'),
+             sg.Radio('Text file', "RADIO1", enable_events=True, key='R2')],
+            [sg.Text('URL', size=(8), key='T1'), sg.In(key='URL'),
+             sg.FileBrowse(file_types=(("TXT Files", "*.txt"), ("ALL Files", "*.*")), visible=False),],
             [sg.Text('Username', size=(8)), sg.In(key='USER')],
-            [sg.Text('Group', size=(8), key='T1'), sg.In(key='GROUP')],
+            [sg.Text('Group', size=(8)), sg.In(key='GROUP')],
             [sg.Button('Ok'), sg.Button('Exit')]
          ]
 
@@ -79,17 +83,53 @@ while True:
         close_program = True
         break
     elif event == 'Ok':
+        url = values['URL']
         user_name = values['USER']
         text = values['GROUP']
         
-        if user_name == '':
+        if url == '':
+            if values['R2'] == True:
+                sg.popup_error("File path can't be empty!")
+            else:
+                sg.popup_error("AMQP URL can't be empty!")
+        elif user_name == '':
             sg.popup_error("Username can't be empty!")
         elif text == '':
             sg.popup_error("Group name can't be empty!")
         else:
             exchange_name = text
-            break
-        
+            
+            if values['R2'] == True:
+                # Try to read file, catch if it fails
+                try:
+                    file = open(url, 'r')
+                    amqpURL = file.readline()
+                    file.close()
+                except:
+                    sg.popup_error("Bad file path!")
+            else:
+                amqpURL = url
+            
+            # Try to connect, catch if it fails
+            try:
+                url = os.environ.get('CLOUDAMQP_URL', str(amqpURL))
+                params = pika.URLParameters(url)
+                connectionPublisher = pika.BlockingConnection(params)
+                channelPublisher = connectionPublisher.channel() # start a channel
+                channelPublisher.exchange_declare(exchange=exchange_name, exchange_type='fanout')
+                break
+            except:
+                sg.popup_error("Connection failed!\n Try another URL")
+
+    # Updates the button visibility and field name
+    if values['R2'] == True:
+        window['URL'].update('')
+        window['Browse'].update(visible = True)
+        window['T1'].update('File path')
+    else:
+        window['URL'].update('')
+        window['Browse'].update(visible = False)
+        window['T1'].update('URL')
 window.close()
 
 # To hide a section
@@ -121,24 +161,23 @@ if close_program == False:
     
     consumerThread = threading.Thread(target=consume)
     
-    connectionPublisher = pika.BlockingConnection(params)
-    channelPublisher = connectionPublisher.channel() # start a channel
-    channelPublisher.exchange_declare(exchange=exchange_name, exchange_type='fanout')
-    
     consumerThread.start()
     
     # Reads the chat log
-    with open(exchange_name+'Log.log', 'r') as f:
-        json_list = json.load(f)
-        
-    # Loads and prints json to box
-    for item in json_list:
-        json_data['user'] = item['user']
-        json_data['timestamp'] = item['timestamp']
-        json_data['message'] = item['message']
-        json_data['source'] = item['source']
-        
-        printToMultiline(outBox, json_data)
+    try:
+        with open(exchange_name+'Log.log', 'r') as f:
+            json_list = json.load(f)
+            
+        # Loads and prints json to chat box one by one
+        for item in json_list:
+            json_data['user'] = item['user']
+            json_data['timestamp'] = item['timestamp']
+            json_data['message'] = item['message']
+            json_data['source'] = item['source']
+            
+            printToMultiline(outBox, json_data)
+    except:
+        print("No log")
     
     while True:
         event, value = window.read()
@@ -186,12 +225,10 @@ if close_program == False:
         else:
             isGroupChat = True
             window['sec'].update(visible=not isGroupChat)
-    
     window.close()
-
-# Writes the log
-
-with open(exchange_name+'Log.log', 'w') as f:
-    json.dump(json_list, f, indent=4)
     
+    # Writes the log
+    with open(exchange_name+'Log.log', 'w') as f:
+        json.dump(json_list, f, indent=4)
+
 print("Closing program")
