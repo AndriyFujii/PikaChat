@@ -2,8 +2,6 @@ import pika, os, threading, json, datetime
 from dateutil import parser
 import PySimpleGUI as sg
 
-
-
 # Read the key from a txt
 file = open('key.txt', 'r')
 amqpKey = file.readline()
@@ -17,6 +15,7 @@ def consume(outBox):
         if stopConsuming:
             channelConsumer.stop_consuming()
             connectionConsumer.close()
+            print("Consumer closed")
         else:
             connectionConsumer.call_later(1, callback)
             
@@ -31,11 +30,20 @@ def consume(outBox):
         global text
         data = json.loads(body)
         date = parser.parse(data['timestamp'])
-        text += "[" + str(date) + "] <" + data['user'] + "> " + data['message']# + '\n'
+        
+        # [yyyy-mm-dd hh:mm:ss] <user_name> message
+        text = "[" + str(date) + "] <" + data['user'] + "> " + data['message']
+        # Paints the message purple if it's private
+        if data['source'] == 'private':
+            color = 'purple'
+        else:
+            color = 'black'
+        
+        
         
         # Multiline is disabled to prevent writing in it
         outBox.update(disabled = False)
-        outBox.update(text)
+        outBox.update(text, text_color_for_value=color, append = True)
         outBox.update(disabled = True)
         
     
@@ -129,9 +137,11 @@ if close_program == False:
                 json_data["timestamp"] = str(datetime.datetime.now().replace(microsecond=0).isoformat())
                 json_data["message"] = message
                 
+                # Group message
                 if isGroupChat == True:
                     json_data["source"] = 'group'
                     channelPublisher.basic_publish(exchange=exchange_name, routing_key='', body=json.dumps(json_data))
+                # Private message
                 else:
                     json_data["source"] = 'private'
                     channelPublisher.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(json_data))
@@ -156,3 +166,5 @@ if close_program == False:
             window['sec'].update(visible=not isGroupChat)
     
     window.close()
+
+print("Closing program")
