@@ -1,5 +1,4 @@
-import pika, os, threading
-import time, json, datetime
+import pika, os, threading, json, datetime
 from dateutil import parser
 import PySimpleGUI as sg
 
@@ -103,7 +102,8 @@ layout = [
 if close_program == False:
     window = sg.Window('PikaChat', layout, default_element_size=(30, 2))
     
-    isGroupChat = False
+    isGroupChat = True
+    isUserSet = False
     outBox = window['OUT']
     
     consumerThread = threading.Thread(target=consume, kwargs={'outBox':outBox})
@@ -111,7 +111,6 @@ if close_program == False:
     connectionPublisher = pika.BlockingConnection(params)
     channelPublisher = connectionPublisher.channel() # start a channel
     channelPublisher.exchange_declare(exchange=exchange_name, exchange_type='fanout')
-    #publisherThread = threading.Thread(target=publish, kwargs={'window':window})
     
     consumerThread.start()
     
@@ -123,23 +122,37 @@ if close_program == False:
             break
         # Send message
         elif event == 'Send':
-            message = value['IN']+'\n'
-            
-            json_data["user"] = user_name
-            json_data["timestamp"] = str(datetime.datetime.now().replace(microsecond=0).isoformat())
-            json_data["message"] = message
-            
-            #channelPublisher.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(json_data))
-            channelPublisher.basic_publish(exchange=exchange_name, routing_key='', body=json.dumps(json_data))
+            if isGroupChat == False and isUserSet == True or isGroupChat == True:
+                message = value['IN']+'\n'
+                
+                json_data["user"] = user_name
+                json_data["timestamp"] = str(datetime.datetime.now().replace(microsecond=0).isoformat())
+                json_data["message"] = message
+                
+                if isGroupChat == True:
+                    json_data["source"] = 'group'
+                    channelPublisher.basic_publish(exchange=exchange_name, routing_key='', body=json.dumps(json_data))
+                else:
+                    json_data["source"] = 'private'
+                    channelPublisher.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(json_data))
+                
+            else:
+                sg.popup_error("User can't be empty!")
         # Direct message
         elif event == 'Set':
             queue_name = value['USER']
+            if queue_name == '':
+                isUserSet = False
+                sg.popup_error("User can't be empty!")
+            else:
+                isUserSet = True
+                sg.popup("User set!")
     
         if value['R2'] == True:
-            isGroupChat = True
-            window['sec'].update(visible=isGroupChat)
-        else:
             isGroupChat = False
-            window['sec'].update(visible=isGroupChat)
+            window['sec'].update(visible=not isGroupChat)
+        else:
+            isGroupChat = True
+            window['sec'].update(visible=not isGroupChat)
     
     window.close()
