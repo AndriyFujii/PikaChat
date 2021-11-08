@@ -17,7 +17,7 @@ def printToMultiline(multiline, json_data):
 
 # Paints the message purple if it's private
 def chooseColor(source):
-    if source == 'private':
+    if source == 'user':
         return 'purple'
     else:
         return 'black'
@@ -202,7 +202,7 @@ if close_program == False:
                     channelPublisher.basic_publish(exchange=exchange_name, routing_key='', body=json.dumps(json_data))
                 # Private message
                 else:
-                    json_data["source"] = 'private'
+                    json_data["source"] = 'user'
                     channelPublisher.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(json_data))
                     # Currently it doesn't logs private messages sent
                     #json_list.append(copy.deepcopy(json_data))
