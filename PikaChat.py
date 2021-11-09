@@ -3,7 +3,6 @@ from dateutil import parser
 import PySimpleGUI as sg
 
 def printToMultiline(multiline, json_data):
-    #print(json_data)
     date = parser.parse(json_data['timestamp'])
     
     # [yyyy-mm-dd hh:mm:ss] <username> message
@@ -14,6 +13,16 @@ def printToMultiline(multiline, json_data):
     multiline.update(text, text_color_for_value=chooseColor(json_data['source']), append = True)
     multiline.update(disabled = True)
     
+def printPrivateToMultiline(multiline, json_data, queue_name):
+    date = parser.parse(json_data['timestamp'])
+    
+    # [yyyy-mm-dd hh:mm:ss] <username> message
+    text = "[" + str(date) + "] >> <" + queue_name + "> " + json_data['message'] + '\n'
+    
+    # Multiline is disabled to prevent user from writing in it
+    multiline.update(disabled = False)
+    multiline.update(text, text_color_for_value='purple', append = True)
+    multiline.update(disabled = True)
 
 # Paints the message purple if it's private
 def chooseColor(source):
@@ -203,6 +212,7 @@ if close_program == False:
                 # Private message
                 else:
                     json_data["source"] = 'user'
+                    printPrivateToMultiline(outBox, json_data, queue_name)
                     channelPublisher.basic_publish(exchange='', routing_key=queue_name, body=json.dumps(json_data))
                     # Currently it doesn't logs private messages sent
                     #json_list.append(copy.deepcopy(json_data))
